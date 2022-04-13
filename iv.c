@@ -11,13 +11,19 @@ enum list{
 
 typedef struct {
     GtkWidget *window;
-    GtkWidget *layout;
     GtkWidget *dir_list;
     GtkWidget *file_list;
     GtkWidget *tf_path;
     GtkWidget *label;
     GtkWidget *commandLine;
     GtkWidget *image;
+    GtkWidget *box_container;
+    GtkWidget *box_left;
+    GtkWidget *box_right;
+    GtkWidget *paned;
+    GtkWidget *paned_lists;
+    GtkWidget *scrolled_dir_list;
+    GtkWidget *scrolled_file_list;
 } GuiModel;
 
 static int one (const struct dirent *unused) {
@@ -46,16 +52,16 @@ int main(int argc, char *argv[]) {
     gtk_window_set_title(GTK_WINDOW(m.window), "ImageViewer - IV");
     gtk_window_set_position(GTK_WINDOW(m.window), GTK_WIN_POS_CENTER);
     gtk_container_set_border_width(GTK_CONTAINER(m.window), 10);
-    gtk_window_set_default_size(GTK_WINDOW(m.window), 500, 500);
+    gtk_window_set_default_size(GTK_WINDOW(m.window), 1500, 1000);
 
     // initialisiert Eingabefeld mit aktuellem Pfad
     gtk_entry_set_text(GTK_ENTRY(m.tf_path), get_current_dir_name());
 
 
-    gtk_tree_view_set_headers_visible(GTK_TREE_VIEW(m.dir_list), TRUE);
+    gtk_tree_view_set_headers_visible(GTK_TREE_VIEW(m.dir_list), FALSE);
     init_list(m.dir_list);
 
-    gtk_tree_view_set_headers_visible(GTK_TREE_VIEW(m.file_list), TRUE);
+    gtk_tree_view_set_headers_visible(GTK_TREE_VIEW(m.file_list), FALSE);
     init_list(m.file_list);
 
     // befüllt die beiden Listen mit Ordnern und Dateien
@@ -83,27 +89,52 @@ int main(int argc, char *argv[]) {
 
 void guimodel_init(GuiModel *m) {
     m->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    m->layout = gtk_grid_new();
-    m->dir_list = gtk_tree_view_new();
-    m->file_list = gtk_tree_view_new();
     m->tf_path = gtk_entry_new();
     m->label = gtk_label_new("selected File");
     m->commandLine = gtk_entry_new();
     m->image = gtk_image_new_from_file("placeholder-image.png");
+    m->paned = gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);
+    m->paned_lists = gtk_paned_new(GTK_ORIENTATION_VERTICAL);
+    m->box_left = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    m->box_right = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    m->scrolled_dir_list = gtk_scrolled_window_new(NULL, NULL);
+    m->scrolled_file_list = gtk_scrolled_window_new(NULL, NULL);
+    m->dir_list = gtk_tree_view_new();
+    m->file_list = gtk_tree_view_new();
 }
 
 void guimodel_assemble(GuiModel *m) {
-	gtk_container_add(GTK_CONTAINER(m->window), m->layout);
-	gtk_grid_attach(GTK_GRID(m->layout), m->tf_path, 0, 0, 4, 1); 
-	gtk_grid_attach(GTK_GRID(m->layout), m->dir_list, 0, 1, 4, 5); 
-	gtk_grid_attach(GTK_GRID(m->layout), m->file_list, 0, 6, 4, 5);
-    //gtk_grid_attach(GTK_GRID(m->layout), m->label, 5, 6, 4, 2);
-    gtk_grid_attach(GTK_GRID(m->layout), m->commandLine, 0, 11, 12, 1);
-    gtk_grid_attach(GTK_GRID(m->layout), m->image, 6, 6, 4, 4);
+    gtk_container_add(GTK_CONTAINER(m->window), m->paned);
 
-    gtk_grid_set_column_homogeneous(GTK_GRID(m->layout), FALSE);
-    gtk_grid_set_column_spacing(GTK_GRID(m->layout), 4);
-    gtk_grid_set_row_spacing(GTK_GRID(m->layout), 2);
+    // setup paned boxes
+    gtk_widget_set_size_request (m->paned, 200, -1);
+    gtk_paned_pack1 (GTK_PANED(m->paned), m->box_left, TRUE, TRUE);
+    gtk_widget_set_size_request (m->box_left, 50, -1);
+    gtk_paned_pack2 (GTK_PANED(m->paned), m->box_right, FALSE, TRUE);
+    gtk_widget_set_size_request (m->box_right, 50, -1);
+
+    // setup paned dir and file list
+    gtk_widget_set_size_request (m->paned_lists, 200, -1);
+    gtk_paned_pack1 (GTK_PANED(m->paned_lists), m->scrolled_dir_list, TRUE, TRUE);
+    gtk_widget_set_size_request (m->scrolled_dir_list, 50, -1);
+    gtk_paned_pack2 (GTK_PANED(m->paned_lists), m->scrolled_file_list, FALSE, TRUE);
+    gtk_widget_set_size_request (m->scrolled_file_list, 50, -1);
+
+    // add lists to scrolledwindow
+    gtk_container_add(GTK_CONTAINER(m->scrolled_dir_list), m->dir_list);
+    gtk_container_add(GTK_CONTAINER(m->scrolled_file_list), m->file_list);
+
+    // set min height of lists
+    gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(m->scrolled_dir_list), 150);
+    gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(m->scrolled_file_list), 150);
+
+    // add items to left box
+    gtk_box_pack_start(GTK_BOX(m->box_left), m->tf_path, FALSE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(m->box_left), m->paned_lists, FALSE, TRUE, 0);
+    // gtk_box_pack_start(GTK_BOX(m->box_left), m->commandLine, FALSE, TRUE, 0);
+    
+    // add image to right box
+    gtk_box_pack_start(GTK_BOX(m->box_right), m->image, TRUE, TRUE, 0);
 }
 
 void init_list(GtkWidget *widget) {
@@ -113,7 +144,7 @@ void init_list(GtkWidget *widget) {
     GtkListStore *store;
 
     renderer = gtk_cell_renderer_text_new ();
-    column = gtk_tree_view_column_new_with_attributes("List items", renderer, "text", LIST_ITEM, NULL);
+    column = gtk_tree_view_column_new_with_attributes("List", renderer, "text", LIST_ITEM, NULL);
     gtk_tree_view_append_column(GTK_TREE_VIEW(widget), column);
 
     store = gtk_list_store_new(N_COLUMNS, G_TYPE_STRING);
